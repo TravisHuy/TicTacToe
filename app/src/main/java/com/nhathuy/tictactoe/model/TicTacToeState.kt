@@ -8,5 +8,6 @@ data class TicTacToeState(
     },
     val currentPlayer: String ="X",
     val winner:String?=null,
-    val isDraw:Boolean= false
+    val isDraw:Boolean= false,
+    val gameMode: GameMode= GameMode.MENU
 )
