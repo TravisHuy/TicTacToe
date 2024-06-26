@@ -1,4 +1,4 @@
-package com.nhathuy.tictactoe
+    package com.nhathuy.tictactoe.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
