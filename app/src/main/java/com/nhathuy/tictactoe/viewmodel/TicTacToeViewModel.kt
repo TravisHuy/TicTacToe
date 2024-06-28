@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.nhathuy.tictactoe.intent.TicTacToeIntent
 import com.nhathuy.tictactoe.model.GameMode
 import com.nhathuy.tictactoe.model.TicTacToeState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -39,20 +40,21 @@ class TicTacToeViewModel:ViewModel() {
                 val newPlayer = if (currentState.currentPlayer == "X") "O" else "X"
                 val winner = checkWinner(newBoard)
                 val isDraw = if (winner == null) checkDraw(newBoard) else false
-
-                if (currentState.gameMode == GameMode.PVE && winner == null && !isDraw && newPlayer == "O") {
-                    viewModelScope.launch {
-                        val aiMove = getAIMove(newBoard)
-                        handleCellClick(aiMove.first, aiMove.second)
-                    }
-                }
-
-                currentState.copy(
+                val updateState =currentState.copy(
                     board = newBoard,
                     currentPlayer = newPlayer,
                     winner = winner,
                     isDraw = isDraw
                 )
+                if (currentState.gameMode == GameMode.PVE && winner == null && !isDraw && newPlayer == "O") {
+                    viewModelScope.launch {
+                        delay(2000)
+                        val aiMove = getAIMove(newBoard)
+                        handleCellClick(aiMove.first, aiMove.second)
+                    }
+                }
+
+                updateState
             } else {
                 currentState
             }
@@ -62,29 +64,30 @@ class TicTacToeViewModel:ViewModel() {
     private fun getAIMove(board: List<List<String?>>): Pair<Int, Int> {
         var bestScore = Double.NEGATIVE_INFINITY
         var bestMove: Pair<Int, Int>? = null
-
+        var availableMoves= mutableListOf<Pair<Int,Int>>()
 
         for (i in board.indices) {
             for (j in board[i].indices) {
                 if (board[i][j] == null) {
-                    val newBoard = board.map {
-                        it.toMutableList()
-                    }
-                    val score = minmax(
-                        newBoard,
-                        0,
-                        true,
-                        Double.NEGATIVE_INFINITY,
-                        Double.POSITIVE_INFINITY
-                    )
-                    if (score > bestScore) {
-                        bestScore = score
-                        bestMove = Pair(i, j)
-                    }
+                    availableMoves.add(Pair(i,j))
                 }
             }
         }
-        return bestMove ?: Pair(0, 0)
+
+        availableMoves.shuffle()
+        for((i,j) in availableMoves){
+            val newBoard = board.map {
+                it.toMutableList()
+            }
+            newBoard[i][j]="O"
+            val score = minmax(newBoard,0,false,Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+            if(score>bestScore){
+                bestScore=score
+                bestMove= Pair(i,j)
+            }
+        }
+
+        return bestMove ?: availableMoves.first()
     }
 
 
@@ -151,17 +154,18 @@ class TicTacToeViewModel:ViewModel() {
         alpha: Double,
         beta: Double): Double {
         val winner = checkWinner(board)
-        if (winner == "O") return 10.0 - depth
-        if (winner == "X") return 10.0 + depth
-        if (checkDraw(board))
-            return 0.0
+        when{
+            winner == "O" -> return 10.0 - depth
+            winner == "X" -> return -10.0 + depth
+            checkDraw(board) -> return 0.0
+        }
 
         var alphaCopy = alpha
         var betaCopy = beta
 
         if (isMaximizing) {
             var bestScore = Double.NEGATIVE_INFINITY
-            for (i in board.indices) {
+            outerLoop@ for (i in board.indices) {
                 for (j in board[i].indices) {
                     if (board[i][j] == null) {
                         val newBoard = board.map {
@@ -171,15 +175,15 @@ class TicTacToeViewModel:ViewModel() {
                         val score = minmax(newBoard, depth - 1, false, alphaCopy, betaCopy)
                         bestScore = maxOf(bestScore, score)
                         alphaCopy = maxOf(alphaCopy, bestScore)
-                        if (betaCopy <= alphaCopy) break
+                        if (betaCopy <= alphaCopy) break@outerLoop
                     }
                 }
 
             }
             return bestScore
         } else {
-            var bestScore = Double.NEGATIVE_INFINITY
-            for (i in board.indices) {
+            var bestScore = Double.POSITIVE_INFINITY
+            outerLoop@for (i in board.indices) {
                 for (j in board[i].indices) {
                     if (board[i][j] == null) {
                         val newBoard = board.map {
@@ -189,7 +193,7 @@ class TicTacToeViewModel:ViewModel() {
                         val score = minmax(newBoard, depth + 1, true, alphaCopy, betaCopy)
                         bestScore = minOf(bestScore, score)
                         alphaCopy = minOf(alphaCopy, bestScore)
-                        if (betaCopy <= alphaCopy) break
+                        if (betaCopy <= alphaCopy) break@outerLoop
                     }
                 }
             }
